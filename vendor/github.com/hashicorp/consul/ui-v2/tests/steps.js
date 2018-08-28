@@ -5,6 +5,8 @@ import getDictionary from '@hashicorp/ember-cli-api-double/dictionary';
 import pages from 'consul-ui/tests/pages';
 import api from 'consul-ui/tests/helpers/api';
 
+// const dont = `( don't| shouldn't| can't)?`;
+
 const create = function(number, name, value) {
   // don't return a promise here as
   // I don't need it to wait
@@ -58,7 +60,7 @@ export default function(assert) {
       )
       // TODO: Abstract this away from HTTP
       .given(['the url "$url" responds with a $status status'], function(url, status) {
-        return api.server.respondWithStatus(url, parseInt(status));
+        return api.server.respondWithStatus(url.split('?')[0], parseInt(status));
       })
       // interactions
       .when('I visit the $name page', function(name) {
@@ -82,6 +84,15 @@ export default function(assert) {
       )
       .when('I click "$selector"', function(selector) {
         return click(selector);
+      })
+      // TODO: Probably nicer to think of better vocab than having the 'without " rule'
+      .when('I click (?!")$property(?!")', function(property) {
+        try {
+          return currentPage[property]();
+        } catch (e) {
+          console.error(e);
+          throw new Error(`The '${property}' property on the page object doesn't exist`);
+        }
       })
       .when('I click $prop on the $component', function(prop, component) {
         // Collection
@@ -207,12 +218,20 @@ export default function(assert) {
         );
         assert.equal(request.url, url, `Expected the request url to be ${url}, was ${request.url}`);
         const body = request.requestBody;
-        assert.equal(
-          body,
-          data,
-          `Expected the request body to be ${body}, was ${request.requestBody}`
-        );
+        assert.equal(body, data, `Expected the request body to be ${data}, was ${body}`);
       })
+      .then('a $method request is made to "$url" with no body', function(method, url) {
+        const request = api.server.history[api.server.history.length - 2];
+        assert.equal(
+          request.method,
+          method,
+          `Expected the request method to be ${method}, was ${request.method}`
+        );
+        assert.equal(request.url, url, `Expected the request url to be ${url}, was ${request.url}`);
+        const body = request.requestBody;
+        assert.equal(body, null, `Expected the request body to be null, was ${body}`);
+      })
+
       .then('a $method request is made to "$url"', function(method, url) {
         const request = api.server.history[api.server.history.length - 2];
         assert.equal(
@@ -221,6 +240,27 @@ export default function(assert) {
           `Expected the request method to be ${method}, was ${request.method}`
         );
         assert.equal(request.url, url, `Expected the request url to be ${url}, was ${request.url}`);
+      })
+      .then('the last $method request was made to "$url"', function(method, url) {
+        const request = api.server.history
+          .slice(0)
+          .reverse()
+          .find(function(item) {
+            return item.method === method;
+          });
+        assert.equal(request.url, url, `Expected the request url to be ${url}, was ${request.url}`);
+      })
+      .then('the last $method requests were like yaml\n$yaml', function(method, data) {
+        const requests = api.server.history.reverse().filter(function(item) {
+          return item.method === method;
+        });
+        data.reverse().forEach(function(item, i, arr) {
+          assert.equal(
+            requests[i].url,
+            item,
+            `Expected the request url to be ${item}, was ${requests[i].url}`
+          );
+        });
       })
       .then('the url should be $url', function(url) {
         // TODO: nice! $url should be wrapped in ""
@@ -240,7 +280,9 @@ export default function(assert) {
 
         assert.equal(len, num, `Expected ${num} ${model}s, saw ${len}`);
       })
-      .then(['I see $num $model model with the $property "$value"'], function(
+      // TODO: I${ dont } see
+      .then([`I see $num $model model[s]? with the $property "$value"`], function(
+        // negate,
         num,
         model,
         property,
@@ -275,7 +317,11 @@ export default function(assert) {
         // this will catch if we get aren't managing to select a component
         assert.ok(iterator.length > 0);
         iterator.forEach(function(item, i, arr) {
-          const actual = _component.objectAt(i)[property];
+          const actual =
+            typeof _component.objectAt(i)[property] === 'undefined'
+              ? null
+              : _component.objectAt(i)[property];
+
           // anything coming from the DOM is going to be text/strings
           // if the yaml has numbers, cast them to strings
           // TODO: This would get problematic for deeper objects
@@ -335,8 +381,15 @@ export default function(assert) {
           `Expected to not see ${property} on ${component}`
         );
       })
-      .then(['I see $property'], function(property, component) {
+      .then(['I see $property'], function(property) {
         assert.ok(currentPage[property], `Expected to see ${property}`);
+      })
+      .then(['I see $property like "$value"'], function(property, value) {
+        assert.equal(
+          currentPage[property],
+          value,
+          `Expected to see ${property}, was ${currentPage[property]}`
+        );
       })
       .then(['I see the text "$text" in "$selector"'], function(text, selector) {
         assert.ok(
@@ -348,10 +401,16 @@ export default function(assert) {
       // TODO: These should be mergeable
       .then(['"$selector" has the "$class" class'], function(selector, cls) {
         // because `find` doesn't work, guessing its sandboxed to ember's container
-        assert.ok(document.querySelector(selector).classList.contains(cls));
+        assert.ok(
+          document.querySelector(selector).classList.contains(cls),
+          `Expected [class] to contain ${cls} on ${selector}`
+        );
       })
       .then(['"$selector" doesn\'t have the "$class" class'], function(selector, cls) {
-        assert.ok(!document.querySelector(selector).classList.contains(cls));
+        assert.ok(
+          !document.querySelector(selector).classList.contains(cls),
+          `Expected [class] not to contain ${cls} on ${selector}`
+        );
       })
       .then('ok', function() {
         assert.ok(true);

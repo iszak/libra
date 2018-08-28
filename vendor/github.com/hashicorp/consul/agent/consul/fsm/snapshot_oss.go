@@ -22,6 +22,8 @@ func init() {
 	registerRestorer(structs.AutopilotRequestType, restoreAutopilot)
 	registerRestorer(structs.IntentionRequestType, restoreIntention)
 	registerRestorer(structs.ConnectCARequestType, restoreConnectCA)
+	registerRestorer(structs.ConnectCAProviderStateType, restoreConnectCAProviderState)
+	registerRestorer(structs.ConnectCAConfigType, restoreConnectCAConfig)
 }
 
 func persistOSS(s *snapshot, sink raft.SnapshotSink, encoder *codec.Encoder) error {
@@ -52,6 +54,12 @@ func persistOSS(s *snapshot, sink raft.SnapshotSink, encoder *codec.Encoder) err
 	if err := s.persistConnectCA(sink, encoder); err != nil {
 		return err
 	}
+	if err := s.persistConnectCAProviderState(sink, encoder); err != nil {
+		return err
+	}
+	if err := s.persistConnectCAConfig(sink, encoder); err != nil {
+		return err
+	}
 	return nil
 }
 
@@ -71,6 +79,7 @@ func (s *snapshot) persistNodes(sink raft.SnapshotSink,
 			Node:            n.Node,
 			Address:         n.Address,
 			TaggedAddresses: n.TaggedAddresses,
+			NodeMeta:	 n.Meta,
 		}
 
 		// Register the node itself
@@ -281,6 +290,41 @@ func (s *snapshot) persistConnectCA(sink raft.SnapshotSink,
 			return err
 		}
 	}
+
+	return nil
+}
+
+func (s *snapshot) persistConnectCAConfig(sink raft.SnapshotSink,
+	encoder *codec.Encoder) error {
+	config, err := s.state.CAConfig()
+	if err != nil {
+		return err
+	}
+
+	if _, err := sink.Write([]byte{byte(structs.ConnectCAConfigType)}); err != nil {
+		return err
+	}
+	if err := encoder.Encode(config); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *snapshot) persistConnectCAProviderState(sink raft.SnapshotSink,
+	encoder *codec.Encoder) error {
+	state, err := s.state.CAProviderState()
+	if err != nil {
+		return err
+	}
+
+	for _, r := range state {
+		if _, err := sink.Write([]byte{byte(structs.ConnectCAProviderStateType)}); err != nil {
+			return err
+		}
+		if err := encoder.Encode(r); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -426,6 +470,28 @@ func restoreConnectCA(header *snapshotHeader, restore *state.Restore, decoder *c
 		return err
 	}
 	if err := restore.CARoot(&req); err != nil {
+		return err
+	}
+	return nil
+}
+
+func restoreConnectCAProviderState(header *snapshotHeader, restore *state.Restore, decoder *codec.Decoder) error {
+	var req structs.CAConsulProviderState
+	if err := decoder.Decode(&req); err != nil {
+		return err
+	}
+	if err := restore.CAProviderState(&req); err != nil {
+		return err
+	}
+	return nil
+}
+
+func restoreConnectCAConfig(header *snapshotHeader, restore *state.Restore, decoder *codec.Decoder) error {
+	var req structs.CAConfiguration
+	if err := decoder.Decode(&req); err != nil {
+		return err
+	}
+	if err := restore.CAConfig(&req); err != nil {
 		return err
 	}
 	return nil

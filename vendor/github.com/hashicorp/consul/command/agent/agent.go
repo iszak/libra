@@ -17,6 +17,7 @@ import (
 	"github.com/hashicorp/consul/command/flags"
 	"github.com/hashicorp/consul/lib"
 	"github.com/hashicorp/consul/logger"
+	"github.com/hashicorp/consul/service_os"
 	"github.com/hashicorp/go-checkpoint"
 	multierror "github.com/hashicorp/go-multierror"
 	"github.com/hashicorp/logutils"
@@ -186,9 +187,12 @@ func (c *cmd) run(args []string) int {
 
 	// Setup the log outputs
 	logConfig := &logger.Config{
-		LogLevel:       config.LogLevel,
-		EnableSyslog:   config.EnableSyslog,
-		SyslogFacility: config.SyslogFacility,
+		LogLevel:          config.LogLevel,
+		EnableSyslog:      config.EnableSyslog,
+		SyslogFacility:    config.SyslogFacility,
+		LogFilePath:       config.LogFile,
+		LogRotateDuration: config.LogRotateDuration,
+		LogRotateBytes:    config.LogRotateBytes,
 	}
 	logFilter, logGate, logWriter, logOutput, ok := logger.Setup(logConfig, c.UI)
 	if !ok {
@@ -277,6 +281,8 @@ func (c *cmd) run(args []string) int {
 		case ch := <-agent.ReloadCh():
 			sig = syscall.SIGHUP
 			reloadErrCh = ch
+		case <-service_os.Shutdown_Channel():
+			sig = os.Interrupt
 		case <-c.shutdownCh:
 			sig = os.Interrupt
 		case err := <-agent.RetryJoinCh():

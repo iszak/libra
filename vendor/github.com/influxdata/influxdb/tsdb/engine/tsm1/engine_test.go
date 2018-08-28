@@ -107,6 +107,11 @@ func TestEngine_Digest(t *testing.T) {
 		}
 		defer dr.Close()
 
+		_, err = dr.ReadManifest()
+		if err != nil {
+			t.Fatal(err)
+		}
+
 		got := []span{}
 
 		for {
@@ -2347,7 +2352,7 @@ func NewEngine(index string) (*Engine, error) {
 
 	opt := tsdb.NewEngineOptions()
 	opt.IndexVersion = index
-	if index == "inmem" {
+	if index == tsdb.InmemIndexName {
 		opt.InmemIndex = inmem.NewIndex(db, sfile)
 	}
 	// Initialise series id sets. Need to do this as it's normally done at the

@@ -172,6 +172,13 @@ func (s *HTTPServer) AgentServices(resp http.ResponseWriter, req *http.Request) 
 
 	// Use empty list instead of nil
 	for id, s := range services {
+		weights := api.AgentWeights{Passing: 1, Warning: 1}
+		if s.Weights != nil {
+			if s.Weights.Passing > 0 {
+				weights.Passing = s.Weights.Passing
+			}
+			weights.Warning = s.Weights.Warning
+		}
 		as := &api.AgentService{
 			Kind:              api.ServiceKind(s.Kind),
 			ID:                s.ID,
@@ -184,6 +191,7 @@ func (s *HTTPServer) AgentServices(resp http.ResponseWriter, req *http.Request) 
 			CreateIndex:       s.CreateIndex,
 			ModifyIndex:       s.ModifyIndex,
 			ProxyDestination:  s.ProxyDestination,
+			Weights:           weights,
 		}
 		if as.Tags == nil {
 			as.Tags = []string{}
@@ -581,6 +589,13 @@ func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Re
 
 	// Get the node service.
 	ns := args.NodeService()
+	if ns.Weights != nil {
+		if err := structs.ValidateWeights(ns.Weights); err != nil {
+			resp.WriteHeader(http.StatusBadRequest)
+			fmt.Fprint(resp, fmt.Errorf("Invalid Weights: %v", err))
+			return nil, nil
+		}
+	}
 	if err := structs.ValidateMetadata(ns.Meta, false); err != nil {
 		resp.WriteHeader(http.StatusBadRequest)
 		fmt.Fprint(resp, fmt.Errorf("Invalid Service Meta: %v", err))
@@ -637,7 +652,7 @@ func (s *HTTPServer) AgentRegisterService(resp http.ResponseWriter, req *http.Re
 	}
 	// Add proxy (which will add proxy service so do it before we trigger sync)
 	if proxy != nil {
-		if err := s.agent.AddProxy(proxy, true, ""); err != nil {
+		if err := s.agent.AddProxy(proxy, true, false, ""); err != nil {
 			return nil, err
 		}
 	}
@@ -665,15 +680,6 @@ func (s *HTTPServer) AgentDeregisterService(resp http.ResponseWriter, req *http.
 
 	if err := s.agent.RemoveService(serviceID, true); err != nil {
 		return nil, err
-	}
-
-	// Remove the associated managed proxy if it exists
-	for proxyID, p := range s.agent.State.Proxies() {
-		if p.Proxy.TargetServiceID == serviceID {
-			if err := s.agent.RemoveProxy(proxyID, true); err != nil {
-				return nil, err
-			}
-		}
 	}
 
 	s.syncChanges()
@@ -944,14 +950,22 @@ func (s *HTTPServer) AgentConnectCALeafCert(resp http.ResponseWriter, req *http.
 		Service: serviceName, // Need name not ID
 	}
 	var qOpts structs.QueryOptions
+
 	// Store DC in the ConnectCALeafRequest but query opts separately
-	if done := s.parse(resp, req, &args.Datacenter, &qOpts); done {
+	// Don't resolve a proxy token to a real token that will be
+	// done with a call to verifyProxyToken later along with
+	// other security relevant checks.
+	if done := s.parseWithoutResolvingProxyToken(resp, req, &args.Datacenter, &qOpts); done {
 		return nil, nil
 	}
 	args.MinQueryIndex = qOpts.MinQueryIndex
 
 	// Verify the proxy token. This will check both the local proxy token
-	// as well as the ACL if the token isn't local.
+	// as well as the ACL if the token isn't local. The checks done in
+	// verifyProxyToken are still relevant because a leaf cert can be cached
+	// verifying the proxy token matches the service id or that a real
+	// acl token still is valid and has ServiceWrite is necessary or
+	// that cached cert is potentially unprotected.
 	effectiveToken, _, err := s.agent.verifyProxyToken(qOpts.Token, serviceName, "")
 	if err != nil {
 		return nil, err
@@ -989,9 +1003,11 @@ func (s *HTTPServer) AgentConnectProxyConfig(resp http.ResponseWriter, req *http
 		return nil, nil
 	}
 
-	// Parse the token
+	// Parse the token - don't resolve a proxy token to a real token
+	// that will be done with a call to verifyProxyToken later along with
+	// other security relevant checks.
 	var token string
-	s.parseToken(req, &token)
+	s.parseTokenWithoutResolvingProxyToken(req, &token)
 
 	// Parse hash specially since it's only this endpoint that uses it currently.
 	// Eventually this should happen in parseWait and end up in QueryOptions but I
@@ -1018,7 +1034,12 @@ func (s *HTTPServer) AgentConnectProxyConfig(resp http.ResponseWriter, req *http
 				return "", nil, nil
 			}
 
-			// Validate the ACL token
+			// Validate the ACL token - because this endpoint uses data local to a single
+			// agent, this function is responsible for all enforcement regarding
+			// protection of the configuration. verifyProxyToken will match the proxies
+			// token to the correct service or in the case of being provide a real ACL
+			// token it will ensure that the requester has ServiceWrite privileges
+			// for this service.
 			_, isProxyToken, err := s.agent.verifyProxyToken(token, target.Service, id)
 			if err != nil {
 				return "", nil, err

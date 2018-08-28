@@ -1,5 +1,5 @@
 @setupApplicationTest
-Feature: dc / nodes / sessions /list: List Lock Sessions
+Feature: dc / nodes / sessions / list: List Lock Sessions
   In order to get information regarding lock sessions
   As a user
   I should be able to see a listing of lock sessions with necessary information under the lock sessions tab for a node
@@ -7,7 +7,7 @@ Feature: dc / nodes / sessions /list: List Lock Sessions
     Given 1 datacenter model with the value "dc1"
     And 1 node model from yaml
     ---
-    - ID: node-0
+    ID: node-0
     ---
     And 2 session models from yaml
     ---

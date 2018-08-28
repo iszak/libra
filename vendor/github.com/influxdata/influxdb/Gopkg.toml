@@ -32,7 +32,7 @@
 
 [[constraint]]
   name = "github.com/influxdata/influxql"
-  revision = "8d2756c43bb02f5d3e505c51cf83a1ac9234c419"
+  revision = "a7267bff5327e316e54c54342b0bc9598753e3d5"
 
 [[constraint]]
   name = "github.com/mattn/go-isatty"

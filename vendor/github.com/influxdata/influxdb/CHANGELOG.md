@@ -1,4 +1,50 @@
-v1.6.0 [unreleased]
+v1.6.3 [2018-09-14]
+-------------------
+
+### Features
+
+-	[#10280](https://github.com/influxdata/influxdb/pull/10280): Remove TSI1 HLL sketches from heap.
+
+### Bugfixes
+
+-	[#10251](https://github.com/influxdata/influxdb/pull/10251): Fix the inherited interval for derivative and others.
+-	[#10273](https://github.com/influxdata/influxdb/pull/10273): Fix the derivative and others time ranges for aggregate data.
+
+v1.6.2 [2018-08-27]
+-------------------
+
+### Features
+
+-	[#10191](https://github.com/influxdata/influxdb/pull/10191): Code Issues 759 Pull requests 37 Projects 0 Wiki Insights Settings Reduce allocations in TSI TagSets implementation.
+
+### Bugfixes
+
+-	[#10219](https://github.com/influxdata/influxdb/pull/10219): Ensure orhpaned series cleaned up with shard drop.
+
+v1.6.1 [2018-08-03]
+-------------------
+
+### Features
+
+-	[#10078](https://github.com/influxdata/influxdb/pull/10078): Improve LogFile performance with bitset iterator.
+-	[#10077](https://github.com/influxdata/influxdb/pull/10077): Add TSI index cardinality report to influx_inspect.
+-	[#10079](https://github.com/influxdata/influxdb/pull/10079): Update to Go 1.10.
+-	[#10080](https://github.com/influxdata/influxdb/pull/10080): Improve performance of buildtsi and TSI planning.
+-	[#10099](https://github.com/influxdata/influxdb/pull/10099): Improve performance of read service for single measurements.
+-	[#10103](https://github.com/influxdata/influxdb/pull/10103): Remove max concurrent compaction limit.
+-	[#10154](https://github.com/influxdata/influxdb/pull/10154): Provide configurable TLS options.
+-	[#10155](https://github.com/influxdata/influxdb/pull/10155): Add option to hint MADV_WILLNEED to kernel.
+
+### Bugfixes
+
+-	[#10012](https://github.com/influxdata/influxdb/pull/10012): Improve series segment recovery.
+-	[#10076](https://github.com/influxdata/influxdb/pull/10076): Fix windows mmap on zero length file.
+-	[#10037](https://github.com/influxdata/influxdb/pull/10037): Ensure Filter iterators executed as late as possible.
+-	[#10061](https://github.com/influxdata/influxdb/pull/10061): Document UDP precision setting in config.
+-	[#10091](https://github.com/influxdata/influxdb/pull/10091): Allow tag keys to contain underscores.
+-	[#10095](https://github.com/influxdata/influxdb/pull/10095): Fix a panic when matching on a specific type of regular expression.
+
+v1.6.0 [2018-07-05]
 -------------------
 
 ### Breaking changes
@@ -46,6 +92,54 @@ v1.6.0 [unreleased]
 -	[#9858](https://github.com/influxdata/influxdb/pull/9858): Return the correct auxiliary values for top/bottom.
 -	[#9866](https://github.com/influxdata/influxdb/pull/9866): Close TSMReaders from FileStore.Close after releasing FileStore mutex.
 -	[#9932](https://github.com/influxdata/influxdb/pull/9932): buildtsi: Do not escape measurement names.
+
+v1.5.4 [2018-06-21]
+-------------------
+
+### Bugfixes
+
+-	[#9924](https://github.com/influxdata/influxdb/pull/9924): [1.5] Fix panic in readTombstoneV4.
+-	[#9931](https://github.com/influxdata/influxdb/pull/9931): buildtsi: Do not escape measurement names.
+
+v1.5.3 [2018-05-25]
+-------------------
+
+### Features
+
+-	[#9903](https://github.com/influxdata/influxdb/pull/9903): Add optional pprof http endpoint immediately on startup.
+
+### Bugfixes
+
+-	[#9765](https://github.com/influxdata/influxdb/pull/9765): Fix the validation for multiple nested distinct calls.
+-	[#9869](https://github.com/influxdata/influxdb/pull/9869): Return the correct auxiliary values for top/bottom.
+
+v1.5.2 [2018-04-12]
+-------------------
+
+### Features
+
+-	[#9680](https://github.com/influxdata/influxdb/pull/9680): Check for root user when running buildtsi.
+-	[#9672](https://github.com/influxdata/influxdb/pull/9672): [1.5] Adjustable TSI Compaction Threshold
+
+### Bugfixes
+
+-	[#9638](https://github.com/influxdata/influxdb/pull/9638): backport: check for failure case where backup dir has no manifest files.
+-	[#9651](https://github.com/influxdata/influxdb/pull/9651): Fix regression to allow now() to be used as the group by offset again.
+-	[#9614](https://github.com/influxdata/influxdb/pull/9614): 1.5: Revert "Use MADV_WILLNEED when loading TSM files".
+-	[#9660](https://github.com/influxdata/influxdb/pull/9660): Ignore index size in Engine.DiskSize().
+-	[#9662](https://github.com/influxdata/influxdb/pull/9662): [1.5] Fix buildtsi partition key.
+-	[#9676](https://github.com/influxdata/influxdb/pull/9676): Ensure that conditions are encoded correctly even if the AST is not properly formed.
+
+v1.5.1 [2018-03-20]
+-------------------
+
+### Bugfixes
+
+-	[#9542](https://github.com/influxdata/influxdb/pull/9542): Allow time variable to be case insensitive again.
+-	[#9564](https://github.com/influxdata/influxdb/pull/9564): Support setting the log level through the environment variable.
+-	[#9575](https://github.com/influxdata/influxdb/pull/9575): Ensure correct number of tags parsed.
+-	[#9566](https://github.com/influxdata/influxdb/pull/9566): Fix panic when checking fieldsets.
+-	[#9587](https://github.com/influxdata/influxdb/pull/9587): Fix data race in WAL.
 
 v1.5.0 [2018-03-06]
 -------------------

@@ -1,9 +1,20 @@
 'use strict';
 
 const EmberApp = require('ember-cli/lib/broccoli/ember-app');
-const stew = require('broccoli-stew');
 module.exports = function(defaults) {
-  let app = new EmberApp(defaults, {
+  const env = EmberApp.env();
+  const prodlike = ['production', 'staging'];
+  const isProd = env === 'production';
+  const isProdLike = prodlike.indexOf(env) > -1;
+  const sourcemaps = !isProd;
+  let app = new EmberApp(
+    Object.assign(
+      {},
+      defaults,
+      {
+        productionEnvironments: prodlike
+      }
+    ), {
     'ember-cli-babel': {
       includePolyfill: true
     },
@@ -23,13 +34,20 @@ module.exports = function(defaults) {
         },
       },
     },
+    'sassOptions': {
+      sourceMapEmbed: sourcemaps,
+    },
     'autoprefixer': {
+      sourcemap: sourcemaps,
       grid: true,
       browsers: [
         "defaults",
         "ie 11"
       ]
     },
+    'ember-cli-string-helpers': {
+      only: ['lowercase']
+    }
   });
   // Use `app.import` to add additional libraries to the generated
   // output files.
@@ -44,8 +62,5 @@ module.exports = function(defaults) {
   // please specify an object with the list of modules as keys
   // along with the exports of each module as its value.
   let tree = app.toTree();
-  if (app.env === 'production') {
-    tree = stew.rm(tree, 'consul-api-double');
-  }
   return tree;
 };

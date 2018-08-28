@@ -14,6 +14,7 @@ import (
 	ca "github.com/hashicorp/consul/agent/connect/ca"
 	"github.com/hashicorp/consul/agent/structs"
 	"github.com/hashicorp/consul/testrpc"
+	"github.com/hashicorp/consul/testutil/retry"
 	"github.com/hashicorp/net-rpc-msgpackrpc"
 	"github.com/stretchr/testify/assert"
 )
@@ -38,7 +39,7 @@ func TestConnectCARoots(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForTestAgent(t, s1.RPC, "dc1")
 
 	// Insert some CAs
 	state := s1.fsm.State()
@@ -81,7 +82,7 @@ func TestConnectCAConfig_GetSet(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForTestAgent(t, s1.RPC, "dc1")
 
 	// Get the starting config
 	{
@@ -114,8 +115,9 @@ func TestConnectCAConfig_GetSet(t *testing.T) {
 			Config:     newConfig,
 		}
 		var reply interface{}
-
-		assert.NoError(msgpackrpc.CallWithCodec(codec, "ConnectCA.ConfigurationSet", args, &reply))
+		retry.Run(t, func(r *retry.R) {
+			r.Check(msgpackrpc.CallWithCodec(codec, "ConnectCA.ConfigurationSet", args, &reply))
+		})
 	}
 
 	// Verify the new config was set
@@ -146,7 +148,7 @@ func TestConnectCAConfig_TriggerRotation(t *testing.T) {
 	codec := rpcClient(t, s1)
 	defer codec.Close()
 
-	testrpc.WaitForLeader(t, s1.RPC, "dc1")
+	testrpc.WaitForTestAgent(t, s1.RPC, "dc1")
 
 	// Store the current root
 	rootReq := &structs.DCSpecificRequest{

@@ -115,6 +115,15 @@ func (s *SeriesIDSet) Equals(other *SeriesIDSet) bool {
 	return s.bitmap.Equals(other.bitmap)
 }
 
+// And returns a new SeriesIDSet containing elements that were present in s and other.
+func (s *SeriesIDSet) And(other *SeriesIDSet) *SeriesIDSet {
+	s.RLock()
+	defer s.RUnlock()
+	other.RLock()
+	defer other.RUnlock()
+	return &SeriesIDSet{bitmap: roaring.And(s.bitmap, other.bitmap)}
+}
+
 // AndNot returns a new SeriesIDSet containing elements that were present in s,
 // but not present in other.
 func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
@@ -126,10 +135,19 @@ func (s *SeriesIDSet) AndNot(other *SeriesIDSet) *SeriesIDSet {
 	return &SeriesIDSet{bitmap: roaring.AndNot(s.bitmap, other.bitmap)}
 }
 
-// ForEach calls f for each id in the set.
+// ForEach calls f for each id in the set. The function is applied to the IDs
+// in ascending order.
 func (s *SeriesIDSet) ForEach(f func(id uint64)) {
 	s.RLock()
 	defer s.RUnlock()
+	itr := s.bitmap.Iterator()
+	for itr.HasNext() {
+		f(uint64(itr.Next()))
+	}
+}
+
+// ForEachNoLock calls f for each id in the set without taking a lock.
+func (s *SeriesIDSet) ForEachNoLock(f func(id uint64)) {
 	itr := s.bitmap.Iterator()
 	for itr.HasNext() {
 		f(uint64(itr.Next()))
@@ -152,6 +170,26 @@ func (s *SeriesIDSet) Diff(other *SeriesIDSet) {
 	s.bitmap = roaring.AndNot(s.bitmap, other.bitmap)
 }
 
+// Clone returns a new SeriesIDSet with a deep copy of the underlying bitmap.
+func (s *SeriesIDSet) Clone() *SeriesIDSet {
+	s.RLock()
+	defer s.RUnlock()
+	return s.CloneNoLock()
+}
+
+// CloneNoLock calls Clone without taking a lock.
+func (s *SeriesIDSet) CloneNoLock() *SeriesIDSet {
+	new := NewSeriesIDSet()
+	new.bitmap = s.bitmap.Clone()
+	return new
+}
+
+// Iterator returns an iterator to the underlying bitmap.
+// This iterator is not protected by a lock.
+func (s *SeriesIDSet) Iterator() SeriesIDSetIterable {
+	return s.bitmap.Iterator()
+}
+
 // UnmarshalBinary unmarshals data into the set.
 func (s *SeriesIDSet) UnmarshalBinary(data []byte) error {
 	s.Lock()
@@ -164,4 +202,9 @@ func (s *SeriesIDSet) WriteTo(w io.Writer) (int64, error) {
 	s.RLock()
 	defer s.RUnlock()
 	return s.bitmap.WriteTo(w)
+}
+
+type SeriesIDSetIterable interface {
+	HasNext() bool
+	Next() uint32
 }

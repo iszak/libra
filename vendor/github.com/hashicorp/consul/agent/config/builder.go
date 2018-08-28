@@ -544,6 +544,9 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 			"token":                 "Token",
 			"root_pki_path":         "RootPKIPath",
 			"intermediate_pki_path": "IntermediatePKIPath",
+
+			// Common CA config
+			"leaf_cert_ttl": "LeafCertTTL",
 		})
 	}
 
@@ -576,15 +579,21 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		ConsulRaftElectionTimeout:        consulRaftElectionTimeout,
 		ConsulRaftHeartbeatTimeout:       consulRaftHeartbeatTimeout,
 		ConsulRaftLeaderLeaseTimeout:     consulRaftLeaderLeaseTimeout,
-		ConsulSerfLANGossipInterval:      b.durationVal("consul.serf_lan.gossip_interval", c.Consul.SerfLAN.Memberlist.GossipInterval),
-		ConsulSerfLANProbeInterval:       b.durationVal("consul.serf_lan.probe_interval", c.Consul.SerfLAN.Memberlist.ProbeInterval),
-		ConsulSerfLANProbeTimeout:        b.durationVal("consul.serf_lan.probe_timeout", c.Consul.SerfLAN.Memberlist.ProbeTimeout),
-		ConsulSerfLANSuspicionMult:       b.intVal(c.Consul.SerfLAN.Memberlist.SuspicionMult),
-		ConsulSerfWANGossipInterval:      b.durationVal("consul.serf_wan.gossip_interval", c.Consul.SerfWAN.Memberlist.GossipInterval),
-		ConsulSerfWANProbeInterval:       b.durationVal("consul.serf_wan.probe_interval", c.Consul.SerfWAN.Memberlist.ProbeInterval),
-		ConsulSerfWANProbeTimeout:        b.durationVal("consul.serf_wan.probe_timeout", c.Consul.SerfWAN.Memberlist.ProbeTimeout),
-		ConsulSerfWANSuspicionMult:       b.intVal(c.Consul.SerfWAN.Memberlist.SuspicionMult),
 		ConsulServerHealthInterval:       b.durationVal("consul.server.health_interval", c.Consul.Server.HealthInterval),
+
+		// gossip configuration
+		GossipLANGossipInterval: b.durationVal("gossip_lan..gossip_interval", c.GossipLAN.GossipInterval),
+		GossipLANGossipNodes:    b.intVal(c.GossipLAN.GossipNodes),
+		GossipLANProbeInterval:  b.durationVal("gossip_lan..probe_interval", c.GossipLAN.ProbeInterval),
+		GossipLANProbeTimeout:   b.durationVal("gossip_lan..probe_timeout", c.GossipLAN.ProbeTimeout),
+		GossipLANSuspicionMult:  b.intVal(c.GossipLAN.SuspicionMult),
+		GossipLANRetransmitMult: b.intVal(c.GossipLAN.RetransmitMult),
+		GossipWANGossipInterval: b.durationVal("gossip_wan..gossip_interval", c.GossipWAN.GossipInterval),
+		GossipWANGossipNodes:    b.intVal(c.GossipWAN.GossipNodes),
+		GossipWANProbeInterval:  b.durationVal("gossip_wan..probe_interval", c.GossipWAN.ProbeInterval),
+		GossipWANProbeTimeout:   b.durationVal("gossip_wan..probe_timeout", c.GossipWAN.ProbeTimeout),
+		GossipWANSuspicionMult:  b.intVal(c.GossipWAN.SuspicionMult),
+		GossipWANRetransmitMult: b.intVal(c.GossipWAN.RetransmitMult),
 
 		// ACL
 		ACLAgentMasterToken:    b.stringVal(c.ACLAgentMasterToken),
@@ -690,6 +699,7 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		DisableAnonymousSignature:               b.boolVal(c.DisableAnonymousSignature),
 		DisableCoordinates:                      b.boolVal(c.DisableCoordinates),
 		DisableHostNodeID:                       b.boolVal(c.DisableHostNodeID),
+		DisableHTTPUnprintableCharFilter:        b.boolVal(c.DisableHTTPUnprintableCharFilter),
 		DisableKeyringFile:                      b.boolVal(c.DisableKeyringFile),
 		DisableRemoteExec:                       b.boolVal(c.DisableRemoteExec),
 		DisableUpdateCheck:                      b.boolVal(c.DisableUpdateCheck),
@@ -707,6 +717,9 @@ func (b *Builder) Build() (rt RuntimeConfig, err error) {
 		LeaveDrainTime:                          b.durationVal("performance.leave_drain_time", c.Performance.LeaveDrainTime),
 		LeaveOnTerm:                             leaveOnTerm,
 		LogLevel:                                b.stringVal(c.LogLevel),
+		LogFile:                                 b.stringVal(c.LogFile),
+		LogRotateBytes:                          b.intVal(c.LogRotateBytes),
+		LogRotateDuration:                       b.durationVal("log_rotate_duration", c.LogRotateDuration),
 		NodeID:                                  types.NodeID(b.stringVal(c.NodeID)),
 		NodeMeta:                                c.NodeMeta,
 		NodeName:                                b.nodeName(c.NodeName),
@@ -1046,6 +1059,8 @@ func (b *Builder) checkVal(v *CheckDefinition) *structs.CheckDefinition {
 		GRPC:              b.stringVal(v.GRPC),
 		GRPCUseTLS:        b.boolVal(v.GRPCUseTLS),
 		TLSSkipVerify:     b.boolVal(v.TLSSkipVerify),
+		AliasNode:         b.stringVal(v.AliasNode),
+		AliasService:      b.stringVal(v.AliasService),
 		Timeout:           b.durationVal(fmt.Sprintf("check[%s].timeout", id), v.Timeout),
 		TTL:               b.durationVal(fmt.Sprintf("check[%s].ttl", id), v.TTL),
 		DeregisterCriticalServiceAfter: b.durationVal(fmt.Sprintf("check[%s].deregister_critical_service_after", id), v.DeregisterCriticalServiceAfter),
@@ -1071,7 +1086,21 @@ func (b *Builder) serviceVal(v *ServiceDefinition) *structs.ServiceDefinition {
 	} else {
 		meta = v.Meta
 	}
+	serviceWeights := &structs.Weights{Passing: 1, Warning: 1}
+	if v.Weights != nil {
+		if v.Weights.Passing != nil {
+			serviceWeights.Passing = *v.Weights.Passing
+		}
+		if v.Weights.Warning != nil {
+			serviceWeights.Warning = *v.Weights.Warning
+		}
+	}
+
+	if err := structs.ValidateWeights(serviceWeights); err != nil {
+		b.err = multierror.Append(fmt.Errorf("Invalid weight definition for service %s: %s", b.stringVal(v.Name), err))
+	}
 	return &structs.ServiceDefinition{
+		Kind:              b.serviceKindVal(v.Kind),
 		ID:                b.stringVal(v.ID),
 		Name:              b.stringVal(v.Name),
 		Tags:              v.Tags,
@@ -1080,8 +1109,22 @@ func (b *Builder) serviceVal(v *ServiceDefinition) *structs.ServiceDefinition {
 		Port:              b.intVal(v.Port),
 		Token:             b.stringVal(v.Token),
 		EnableTagOverride: b.boolVal(v.EnableTagOverride),
+		Weights:           serviceWeights,
 		Checks:            checks,
+		ProxyDestination:  b.stringVal(v.ProxyDestination),
 		Connect:           b.serviceConnectVal(v.Connect),
+	}
+}
+
+func (b *Builder) serviceKindVal(v *string) structs.ServiceKind {
+	if v == nil {
+		return structs.ServiceKindTypical
+	}
+	switch *v {
+	case string(structs.ServiceKindConnectProxy):
+		return structs.ServiceKindConnectProxy
+	default:
+		return structs.ServiceKindTypical
 	}
 }
 
@@ -1100,7 +1143,8 @@ func (b *Builder) serviceConnectVal(v *ServiceConnect) *structs.ServiceConnect {
 	}
 
 	return &structs.ServiceConnect{
-		Proxy: proxy,
+		Native: b.boolVal(v.Native),
+		Proxy:  proxy,
 	}
 }
 
@@ -1198,7 +1242,7 @@ func (b *Builder) expandAddrs(name string, s *string) []net.Addr {
 
 	x, err := template.Parse(*s)
 	if err != nil {
-		b.err = multierror.Append(b.err, fmt.Errorf("%s: error parsing %q: %s", name, s, err))
+		b.err = multierror.Append(b.err, fmt.Errorf("%s: error parsing %q: %s", name, *s, err))
 		return nil
 	}
 
@@ -1237,7 +1281,7 @@ func (b *Builder) expandOptionalAddrs(name string, s *string) []string {
 
 	x, err := template.Parse(*s)
 	if err != nil {
-		b.err = multierror.Append(b.err, fmt.Errorf("%s: error parsing %q: %s", name, s, err))
+		b.err = multierror.Append(b.err, fmt.Errorf("%s: error parsing %q: %s", name, *s, err))
 		return nil
 	}
 

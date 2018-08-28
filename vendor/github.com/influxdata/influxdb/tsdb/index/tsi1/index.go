@@ -24,7 +24,7 @@ import (
 )
 
 // IndexName is the name of the index.
-const IndexName = "tsi1"
+const IndexName = tsdb.TSI1IndexName
 
 // ErrCompactionInterrupted is returned if compactions are disabled or
 // an index is closed while a compaction is occurring.
@@ -86,6 +86,30 @@ var WithMaximumLogFileSize = func(size int64) IndexOption {
 	}
 }
 
+// DisableFsync disables flushing and syncing of underlying files. Primarily this
+// impacts the LogFiles. This option can be set when working with the index in
+// an offline manner, for cases where a hard failure can be overcome by re-running the tooling.
+var DisableFsync = func() IndexOption {
+	return func(i *Index) {
+		i.disableFsync = true
+	}
+}
+
+// WithLogFileBufferSize sets the size of the buffer used within LogFiles.
+// Typically appending an entry to a LogFile involves writing 11 or 12 bytes, so
+// depending on how many new series are being created within a batch, it may
+// be appropriate to set this.
+var WithLogFileBufferSize = func(sz int) IndexOption {
+	return func(i *Index) {
+		if sz > 1<<17 { // 128K
+			sz = 1 << 17
+		} else if sz < 1<<12 {
+			sz = 1 << 12 // 4K (runtime default)
+		}
+		i.logfileBufferSize = sz
+	}
+}
+
 // Index represents a collection of layered index files and WAL.
 type Index struct {
 	mu         sync.RWMutex
@@ -96,11 +120,17 @@ type Index struct {
 	path               string      // Root directory of the index partitions.
 	disableCompactions bool        // Initially disables compactions on the index.
 	maxLogFileSize     int64       // Maximum size of a LogFile before it's compacted.
+	logfileBufferSize  int         // The size of the buffer used by the LogFile.
+	disableFsync       bool        // Disables flushing buffers and fsyning files. Used when working with indexes offline.
 	logger             *zap.Logger // Index's logger.
 
 	// The following must be set when initializing an Index.
 	sfile    *tsdb.SeriesFile // series lookup file
 	database string           // Name of database.
+
+	// Cached sketches.
+	mSketch, mTSketch estimator.Sketch // Measurement sketches
+	sSketch, sTSketch estimator.Sketch // Series sketches
 
 	// Index's version.
 	version int
@@ -121,6 +151,10 @@ func NewIndex(sfile *tsdb.SeriesFile, database string, options ...IndexOption) *
 		version:        Version,
 		sfile:          sfile,
 		database:       database,
+		mSketch:        hll.NewDefaultPlus(),
+		mTSketch:       hll.NewDefaultPlus(),
+		sSketch:        hll.NewDefaultPlus(),
+		sTSketch:       hll.NewDefaultPlus(),
 		PartitionN:     DefaultPartitionN,
 	}
 
@@ -147,6 +181,10 @@ func (i *Index) Bytes() int {
 	b += int(unsafe.Sizeof(i.logger))
 	b += int(unsafe.Sizeof(i.sfile))
 	// Do not count SeriesFile because it belongs to the code that constructed this Index.
+	b += int(unsafe.Sizeof(i.mSketch)) + i.mSketch.Bytes()
+	b += int(unsafe.Sizeof(i.mTSketch)) + i.mTSketch.Bytes()
+	b += int(unsafe.Sizeof(i.sSketch)) + i.sSketch.Bytes()
+	b += int(unsafe.Sizeof(i.sTSketch)) + i.sTSketch.Bytes()
 	b += int(unsafe.Sizeof(i.database)) + len(i.database)
 	b += int(unsafe.Sizeof(i.version))
 	b += int(unsafe.Sizeof(i.PartitionN))
@@ -206,6 +244,8 @@ func (i *Index) Open() error {
 	for j := 0; j < len(i.partitions); j++ {
 		p := NewPartition(i.sfile, filepath.Join(i.path, fmt.Sprint(j)))
 		p.MaxLogFileSize = i.maxLogFileSize
+		p.nosync = i.disableFsync
+		p.logbufferSize = i.logfileBufferSize
 		p.logger = i.logger.With(zap.String("tsi1_partition", fmt.Sprint(j+1)))
 		i.partitions[j] = p
 	}
@@ -237,6 +277,13 @@ func (i *Index) Open() error {
 		if err := <-errC; err != nil {
 			return err
 		}
+	}
+
+	// Refresh cached sketches.
+	if err := i.updateSeriesSketches(); err != nil {
+		return err
+	} else if err := i.updateMeasurementSketches(); err != nil {
+		return err
 	}
 
 	// Mark opened.
@@ -316,6 +363,36 @@ func (i *Index) availableThreads() int {
 		return len(i.partitions)
 	}
 	return n
+}
+
+// updateMeasurementSketches rebuilds the cached measurement sketches.
+func (i *Index) updateMeasurementSketches() error {
+	i.mSketch, i.mTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for j := 0; j < int(i.PartitionN); j++ {
+		if s, t, err := i.partitions[j].MeasurementsSketches(); err != nil {
+			return err
+		} else if i.mSketch.Merge(s); err != nil {
+			return err
+		} else if i.mTSketch.Merge(t); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// updateSeriesSketches rebuilds the cached series sketches.
+func (i *Index) updateSeriesSketches() error {
+	i.sSketch, i.sTSketch = hll.NewDefaultPlus(), hll.NewDefaultPlus()
+	for j := 0; j < int(i.PartitionN); j++ {
+		if s, t, err := i.partitions[j].SeriesSketches(); err != nil {
+			return err
+		} else if i.sSketch.Merge(s); err != nil {
+			return err
+		} else if i.sTSketch.Merge(t); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 // SetFieldSet sets a shared field set from the engine.
@@ -526,6 +603,13 @@ func (i *Index) DropMeasurement(name []byte) error {
 			return err
 		}
 	}
+
+	// Update sketches.
+	i.mTSketch.Add(name)
+	if err := i.updateSeriesSketches(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -573,12 +657,26 @@ func (i *Index) CreateSeriesListIfNotExists(keys [][]byte, names [][]byte, tagsS
 			return err
 		}
 	}
+
+	// Update sketches.
+	for _, key := range keys {
+		i.sSketch.Add(key)
+	}
+	for _, name := range names {
+		i.mSketch.Add(name)
+	}
+
 	return nil
 }
 
 // CreateSeriesIfNotExists creates a series if it doesn't exist or is deleted.
 func (i *Index) CreateSeriesIfNotExists(key, name []byte, tags models.Tags) error {
-	return i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags})
+	if err := i.partition(key).createSeriesListIfNotExists([][]byte{name}, []models.Tags{tags}); err != nil {
+		return err
+	}
+	i.sSketch.Add(key)
+	i.mSketch.Add(name)
+	return nil
 }
 
 // InitializeSeries is a no-op. This only applies to the in-memory index.
@@ -593,6 +691,9 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	if err := i.partition(key).DropSeries(seriesID); err != nil {
 		return err
 	}
+
+	// Add sketch tombstone.
+	i.sTSketch.Add(key)
 
 	if !cascade {
 		return nil
@@ -615,6 +716,9 @@ func (i *Index) DropSeries(seriesID uint64, key []byte, cascade bool) error {
 	return nil
 }
 
+// DropSeriesGlobal is a no-op on the tsi1 index.
+func (i *Index) DropSeriesGlobal(key []byte) error { return nil }
+
 // DropMeasurementIfSeriesNotExist drops a measurement only if there are no more
 // series for the measurment.
 func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
@@ -629,46 +733,14 @@ func (i *Index) DropMeasurementIfSeriesNotExist(name []byte) error {
 	return i.DropMeasurement(name)
 }
 
-// MeasurementsSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the partitions.
+// MeasurementsSketches returns the two measurement sketches for the index.
 func (i *Index) MeasurementsSketches() (estimator.Sketch, estimator.Sketch, error) {
-	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, p := range i.partitions {
-		// Get partition's measurement sketches and merge.
-		ps, pts, err := p.MeasurementsSketches()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := s.Merge(ps); err != nil {
-			return nil, nil, err
-		} else if err := ts.Merge(pts); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return s, ts, nil
+	return i.mSketch, i.mTSketch, nil
 }
 
-// SeriesSketches returns the two sketches for the index by merging all
-// instances of the type sketch types in all the partitions.
+// SeriesSketches returns the two series sketches for the index.
 func (i *Index) SeriesSketches() (estimator.Sketch, estimator.Sketch, error) {
-	s, ts := hll.NewDefaultPlus(), hll.NewDefaultPlus()
-	for _, p := range i.partitions {
-		// Get partition's measurement sketches and merge.
-		ps, pts, err := p.SeriesSketches()
-		if err != nil {
-			return nil, nil, err
-		}
-
-		if err := s.Merge(ps); err != nil {
-			return nil, nil, err
-		} else if err := ts.Merge(pts); err != nil {
-			return nil, nil, err
-		}
-	}
-
-	return s, ts, nil
+	return i.sSketch, i.sTSketch, nil
 }
 
 // Since indexes are not shared across shards, the count returned by SeriesN

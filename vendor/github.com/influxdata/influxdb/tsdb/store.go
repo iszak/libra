@@ -106,15 +106,16 @@ func (s *Store) Statistics(tags map[string]string) []models.Statistic {
 	databases := s.Databases()
 	statistics := make([]models.Statistic, 0, len(databases))
 	for _, database := range databases {
+		log := s.Logger.With(logger.Database(database))
 		sc, err := s.SeriesCardinality(database)
 		if err != nil {
-			s.Logger.Info("Cannot retrieve series cardinality", zap.Error(err))
+			log.Info("Cannot retrieve series cardinality", zap.Error(err))
 			continue
 		}
 
 		mc, err := s.MeasurementsCardinality(database)
 		if err != nil {
-			s.Logger.Info("Cannot retrieve measurement cardinality", zap.Error(err))
+			log.Info("Cannot retrieve measurement cardinality", zap.Error(err))
 			continue
 		}
 
@@ -214,11 +215,6 @@ func (s *Store) loadShards() error {
 	if lim == 0 {
 		lim = runtime.GOMAXPROCS(0) / 2 // Default to 50% of cores for compactions
 
-		// On systems with more cores, cap at 4 to reduce disk utilization
-		if lim > 4 {
-			lim = 4
-		}
-
 		if lim < 1 {
 			lim = 1
 		}
@@ -232,11 +228,15 @@ func (s *Store) loadShards() error {
 	s.EngineOptions.CompactionLimiter = limiter.NewFixed(lim)
 
 	// Env var to disable throughput limiter.  This will be moved to a config option in 1.5.
+	compactionSettings := []zapcore.Field{zap.Int("max_concurrent_compactions", lim)}
 	if os.Getenv("INFLUXDB_DATA_COMPACTION_THROUGHPUT") == "" {
+		rate, burst := 48*1024*1024, 48*1024*1024
 		s.EngineOptions.CompactionThroughputLimiter = limiter.NewRate(48*1024*1024, 48*1024*1024)
+		compactionSettings = append(compactionSettings, zap.Int("throughput_bytes_per_second", rate), zap.Int("throughput_burst_bytes", burst))
 	} else {
-		s.Logger.Info("Compaction throughput limit disabled")
+		compactionSettings = append(compactionSettings, zap.String("throughput_bytes_per_second", "unlimited"), zap.String("throughput_burst", "unlimited"))
 	}
+	s.Logger.Info("Compaction settings", compactionSettings...)
 
 	log, logEnd := logger.NewOperation(s.Logger, "Open store", "tsdb_open")
 	defer logEnd()
@@ -336,7 +336,7 @@ func (s *Store) loadShards() error {
 
 					// Existing shards should continue to use inmem index.
 					if _, err := os.Stat(filepath.Join(path, "index")); os.IsNotExist(err) {
-						opt.IndexVersion = "inmem"
+						opt.IndexVersion = InmemIndexName
 					}
 
 					// Open engine.
@@ -661,9 +661,6 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	ss := index.SeriesIDSet()
 
 	db := sh.Database()
-	if err := sh.Close(); err != nil {
-		return err
-	}
 
 	// Determine if the shard contained any series that are not present in any
 	// other shards in the database.
@@ -684,10 +681,42 @@ func (s *Store) DeleteShard(shardID uint64) error {
 	if ss.Cardinality() > 0 {
 		sfile := s.seriesFile(db)
 		if sfile != nil {
+			// If the inmem index is in use, then the series being removed from the
+			// series file will also need to be removed from the index.
+			if index.Type() == InmemIndexName {
+				var keyBuf []byte // Series key buffer.
+				var name []byte
+				var tagsBuf models.Tags // Buffer for tags container.
+				var err error
+
+				ss.ForEach(func(id uint64) {
+					skey := sfile.SeriesKey(id) // Series File series key
+					if skey == nil {
+						return
+					}
+
+					name, tagsBuf = ParseSeriesKeyInto(skey, tagsBuf)
+					keyBuf = models.AppendMakeKey(keyBuf, name, tagsBuf)
+					if err = index.DropSeriesGlobal(keyBuf); err != nil {
+						return
+					}
+				})
+
+				if err != nil {
+					return err
+				}
+			}
+
 			ss.ForEach(func(id uint64) {
 				sfile.DeleteSeriesID(id)
 			})
 		}
+
+	}
+
+	// Close the shard.
+	if err := sh.Close(); err != nil {
+		return err
 	}
 
 	// Remove the on-disk shard data.
@@ -1340,7 +1369,7 @@ func (s *Store) TagKeys(auth query.Authorizer, shardIDs []uint64, cond influxql.
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || strings.HasPrefix(tag.Val, "_") {
+				if !ok || influxql.IsSystemName(tag.Val) {
 					return nil
 				}
 			}
@@ -1496,7 +1525,7 @@ func (s *Store) TagValues(auth query.Authorizer, shardIDs []uint64, cond influxq
 			switch e.Op {
 			case influxql.EQ, influxql.NEQ, influxql.EQREGEX, influxql.NEQREGEX:
 				tag, ok := e.LHS.(*influxql.VarRef)
-				if !ok || strings.HasPrefix(tag.Val, "_") {
+				if !ok || influxql.IsSystemName(tag.Val) {
 					return nil
 				}
 			}
@@ -1752,7 +1781,9 @@ func (s *Store) monitorShards() {
 			for _, sh := range s.shards {
 				if sh.IsIdle() {
 					if err := sh.Free(); err != nil {
-						s.Logger.Warn("Error while freeing cold shard resources", zap.Error(err))
+						s.Logger.Warn("Error while freeing cold shard resources",
+							zap.Error(err),
+							logger.Shard(sh.ID()))
 					}
 				} else {
 					sh.SetCompactionsEnabled(true)
@@ -1766,7 +1797,7 @@ func (s *Store) monitorShards() {
 
 			s.mu.RLock()
 			shards := s.filterShards(func(sh *Shard) bool {
-				return sh.IndexType() == "inmem"
+				return sh.IndexType() == InmemIndexName
 			})
 			s.mu.RUnlock()
 
@@ -1810,7 +1841,10 @@ func (s *Store) monitorShards() {
 				indexSet := IndexSet{Indexes: []Index{firstShardIndex}, SeriesFile: sfile}
 				names, err := indexSet.MeasurementNamesByExpr(nil, nil)
 				if err != nil {
-					s.Logger.Warn("Cannot retrieve measurement names", zap.Error(err))
+					s.Logger.Warn("Cannot retrieve measurement names",
+						zap.Error(err),
+						logger.Shard(sh.ID()),
+						logger.Database(db))
 					return nil
 				}
 

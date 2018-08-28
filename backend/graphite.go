@@ -19,17 +19,18 @@ type GraphiteConfig struct {
 
 // GraphiteBackend is a metrics backend
 type GraphiteBackend struct {
-	Config     GraphiteConfig
-	Connection *graphite.Client
+	config GraphiteConfig
+	client *graphite.Client
 }
 
 // NewGraphiteBackend will create a new Graphite Client
 func NewGraphiteBackend(config GraphiteConfig) (*GraphiteBackend, error) {
-	sess := graphite.NewClient(config.Host, config.Username, config.Password)
+	client := graphite.NewClient(config.Host, config.Username, config.Password)
 
-	backend := &GraphiteBackend{}
-	backend.Config = config
-	backend.Connection = sess
+	backend := &GraphiteBackend{
+		config,
+		client,
+	}
 
 	return backend, nil
 }
@@ -41,7 +42,7 @@ func (b *GraphiteBackend) GetValue(rule structs.Rule) (float64, error) {
 		return 0.0, fmt.Errorf("Missing metric_name inside config{} stanza")
 	}
 
-	s, err := b.Connection.Render(metricName)
+	s, err := b.client.Render(metricName)
 	if err != nil {
 		log.Println(err)
 		return 0.0, err

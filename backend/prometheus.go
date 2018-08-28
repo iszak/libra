@@ -16,8 +16,8 @@ type PrometheusConfig struct {
 
 // PrometheusBackend is a metrics backend
 type PrometheusBackend struct {
-	Config     PrometheusConfig
-	Connection prometheus.QueryAPI
+	config PrometheusConfig
+	client prometheus.QueryAPI
 }
 
 func NewQueryAPI(address string) (prometheus.QueryAPI, error) {
@@ -36,8 +36,8 @@ func NewQueryAPI(address string) (prometheus.QueryAPI, error) {
 // NewPrometheusBackend will create a new Prometheus Client
 func NewPrometheusBackend(config PrometheusConfig, queryApi prometheus.QueryAPI) (*PrometheusBackend, error) {
 	backend := &PrometheusBackend{}
-	backend.Config = config
-	backend.Connection = queryApi
+	backend.config = config
+	backend.client = queryApi
 
 	return backend, nil
 }
@@ -49,7 +49,7 @@ func (b *PrometheusBackend) GetValue(rule structs.Rule) (float64, error) {
 		return 0.0, fmt.Errorf("Missing metric_name inside config{} stanza")
 	}
 
-	value, err := b.Connection.Query(context.Background(), metricName, time.Now())
+	value, err := b.client.Query(context.Background(), metricName, time.Now())
 	if err != nil {
 		return 0.0, err
 	}

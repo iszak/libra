@@ -44,7 +44,7 @@ func TestNewPrometheusBackend(t *testing.T) {
 		t.Fail()
 	}
 
-	if b.Connection == nil {
+	if b.client == nil {
 		t.Fail()
 	}
 }

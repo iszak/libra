@@ -20,8 +20,8 @@ type CloudWatchConfig struct {
 
 // CloudWatchBackend is a metrics backend
 type CloudWatchBackend struct {
-	Config     CloudWatchConfig
-	Connection *cloudwatch.CloudWatch
+	config CloudWatchConfig
+	client *cloudwatch.CloudWatch
 }
 
 // NewCloudWatchBackend will create a new CloudWatch Client
@@ -30,11 +30,12 @@ func NewCloudWatchBackend(config CloudWatchConfig) (*CloudWatchBackend, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(config.Region),
 	}))
-	svc := cloudwatch.New(sess)
+	client := cloudwatch.New(sess)
 
-	backend := &CloudWatchBackend{}
-	backend.Config = config
-	backend.Connection = svc
+	backend := &CloudWatchBackend{
+		config,
+		client,
+	}
 
 	return backend, nil
 }
@@ -75,7 +76,7 @@ func (b *CloudWatchBackend) GetValue(rule structs.Rule) (float64, error) {
 		Statistics: aws.StringSlice([]string{"Average"}),
 	}
 
-	s, err := b.Connection.GetMetricStatistics(dinput)
+	s, err := b.client.GetMetricStatistics(dinput)
 	if err != nil {
 		log.Println(err)
 		return 0.0, err

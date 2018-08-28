@@ -11,7 +11,7 @@ import (
 // NewClient will create a instance of a nomad API Client
 func NewClient(c Config) (*api.Client, error) {
 	nomadDefaultConfig := api.DefaultConfig()
-	envAddress := os.Getenv("NOMAD_ADDRESS")
+	envAddress := os.Getenv("NOMAD_ADDR")
 
 	if envAddress != "" {
 		nomadDefaultConfig.Address = envAddress

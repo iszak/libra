@@ -38,8 +38,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 
 			conf := c.Backends[name]
 
-			connection, err := NewCloudWatchBackend(name, CloudWatchConfig{
-				Name:   conf.Name,
+			connection, err := NewCloudWatchBackend(CloudWatchConfig{
 				Region: conf.Region,
 			})
 			if err != nil {
@@ -63,9 +62,8 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 			if password == "" {
 				password = os.Getenv("GRAPHITE_PASSWORD")
 			}
-			connection, err := NewGraphiteBackend(name, GraphiteConfig{
+			connection, err := NewGraphiteBackend(GraphiteConfig{
 				Kind:     conf.Kind,
-				Name:     conf.Name,
 				Host:     conf.Host,
 				Username: conf.Username,
 				Password: password,
@@ -92,9 +90,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				return nil, err
 			}
 
-			connection, err := NewPrometheusBackend(name, PrometheusConfig{
-				Name: conf.Name,
-			}, client)
+			connection, err := NewPrometheusBackend(PrometheusConfig{}, client)
 
 			if err != nil {
 				return nil, fmt.Errorf("Bad configuration for %s: %s", name, err)

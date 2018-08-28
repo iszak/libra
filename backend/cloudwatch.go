@@ -15,19 +15,17 @@ import (
 
 // CloudWatchConfig is the configuration for a CloudWatch backend
 type CloudWatchConfig struct {
-	Name   string
 	Region string
 }
 
 // CloudWatchBackend is a metrics backend
 type CloudWatchBackend struct {
-	Name       string
 	Config     CloudWatchConfig
 	Connection *cloudwatch.CloudWatch
 }
 
 // NewCloudWatchBackend will create a new CloudWatch Client
-func NewCloudWatchBackend(name string, config CloudWatchConfig) (*CloudWatchBackend, error) {
+func NewCloudWatchBackend(config CloudWatchConfig) (*CloudWatchBackend, error) {
 	// create the cloudwatch client
 	sess := session.Must(session.NewSession(&aws.Config{
 		Region: aws.String(config.Region),
@@ -35,7 +33,6 @@ func NewCloudWatchBackend(name string, config CloudWatchConfig) (*CloudWatchBack
 	svc := cloudwatch.New(sess)
 
 	backend := &CloudWatchBackend{}
-	backend.Name = name
 	backend.Config = config
 	backend.Connection = svc
 
@@ -87,10 +84,4 @@ func (b *CloudWatchBackend) GetValue(rule structs.Rule) (float64, error) {
 		return 0.0, errors.New("no datapoints found for metric")
 	}
 	return *s.Datapoints[len(s.Datapoints)-1].Average, nil
-}
-
-func (b *CloudWatchBackend) Info() *structs.Backend {
-	return &structs.Backend{
-		Name: b.Name,
-	}
 }

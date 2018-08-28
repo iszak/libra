@@ -2,7 +2,6 @@ package structs
 
 // Backender interface
 type Backender interface {
-	Info() *Backend
 	GetValue(rule Rule) (float64, error)
 }
 

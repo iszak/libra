@@ -11,7 +11,6 @@ import (
 
 // GraphiteConfig is the configuration for a Graphite backend
 type GraphiteConfig struct {
-	Name     string
 	Kind     string
 	Host     string
 	Username string
@@ -20,17 +19,15 @@ type GraphiteConfig struct {
 
 // GraphiteBackend is a metrics backend
 type GraphiteBackend struct {
-	Name       string
 	Config     GraphiteConfig
 	Connection *graphite.Client
 }
 
 // NewGraphiteBackend will create a new Graphite Client
-func NewGraphiteBackend(name string, config GraphiteConfig) (*GraphiteBackend, error) {
+func NewGraphiteBackend(config GraphiteConfig) (*GraphiteBackend, error) {
 	sess := graphite.NewClient(config.Host, config.Username, config.Password)
 
 	backend := &GraphiteBackend{}
-	backend.Name = name
 	backend.Config = config
 	backend.Connection = sess
 
@@ -55,8 +52,3 @@ func (b *GraphiteBackend) GetValue(rule structs.Rule) (float64, error) {
 	return s.Datapoints[len(s.Datapoints)-1][0], nil
 }
 
-func (b *GraphiteBackend) Info() *structs.Backend {
-	return &structs.Backend{
-		Name: b.Name,
-	}
-}

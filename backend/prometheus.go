@@ -11,13 +11,11 @@ import (
 
 // PrometheusConfig is the configuration for a Prometheus backend
 type PrometheusConfig struct {
-	Name string
 	Host string
 }
 
 // PrometheusBackend is a metrics backend
 type PrometheusBackend struct {
-	Name       string
 	Config     PrometheusConfig
 	Connection prometheus.QueryAPI
 }
@@ -36,9 +34,8 @@ func NewQueryAPI(address string) (prometheus.QueryAPI, error) {
 }
 
 // NewPrometheusBackend will create a new Prometheus Client
-func NewPrometheusBackend(name string, config PrometheusConfig, queryApi prometheus.QueryAPI) (*PrometheusBackend, error) {
+func NewPrometheusBackend(config PrometheusConfig, queryApi prometheus.QueryAPI) (*PrometheusBackend, error) {
 	backend := &PrometheusBackend{}
-	backend.Name = name
 	backend.Config = config
 	backend.Connection = queryApi
 
@@ -75,10 +72,4 @@ func (b *PrometheusBackend) GetValue(rule structs.Rule) (float64, error) {
 	}
 
 	return float64([]*model.Sample(s)[0].Value), nil
-}
-
-func (b *PrometheusBackend) Info() *structs.Backend {
-	return &structs.Backend{
-		Name: b.Name,
-	}
 }

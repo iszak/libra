@@ -2,22 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  digest = "1:199aace324d578351f8a970a08704e532b6e88f686371346a645d15d64e83eaa"
-  name = "github.com/YotpoLtd/libra"
-  packages = [
-    "api",
-    "backend",
-    "command",
-    "config",
-    "graphite",
-    "nomad",
-    "structs",
-  ]
-  pruneopts = ""
-  revision = "1972ba79739fc370ff518b9f70c6aa8e7f8acfe2"
-
-[[projects]]
   digest = "1:145955b5ebbb000d0b0f7378db28249d60768664de8c9bc7f1b1b51f16d69774"
   name = "github.com/ant0ine/go-json-rest"
   packages = [
@@ -336,6 +320,22 @@
   version = "v1.1.2"
 
 [[projects]]
+  digest = "1:4142d94383572e74b42352273652c62afec5b23f325222ed09198f46009022d1"
+  name = "github.com/prometheus/client_golang"
+  packages = ["api/prometheus"]
+  pruneopts = ""
+  revision = "c5b7fccd204277076155f10851dad72b76a49317"
+  version = "v0.8.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:f477ef7b65d94fb17574fc6548cef0c99a69c1634ea3b6da248b63a61ebe0498"
+  name = "github.com/prometheus/common"
+  packages = ["model"]
+  pruneopts = ""
+  revision = "c7de2306084e37d54b8be01f3541a8464345e9a5"
+
+[[projects]]
   digest = "1:3fcbf733a8d810a21265a7f2fe08a3353db2407da052b233f8b204b5afc03d9b"
   name = "github.com/sirupsen/logrus"
   packages = ["."]
@@ -363,6 +363,17 @@
 
 [[projects]]
   branch = "master"
+  digest = "1:507e8b2dd680599d447d627e102f161b58f4f5ef17eea0e81c181adad2d28a1f"
+  name = "golang.org/x/net"
+  packages = [
+    "context",
+    "context/ctxhttp",
+  ]
+  pruneopts = ""
+  revision = "2f5d2388922f370f4355f327fcf4cfe9f5583908"
+
+[[projects]]
+  branch = "master"
   digest = "1:70d519d5cddeb60ceda2db88c24c340b1b2d7efb25ab54bacb38f57ea1998df7"
   name = "golang.org/x/sys"
   packages = [
@@ -385,13 +396,6 @@
   analyzer-name = "dep"
   analyzer-version = 1
   input-imports = [
-    "github.com/YotpoLtd/libra/api",
-    "github.com/YotpoLtd/libra/backend",
-    "github.com/YotpoLtd/libra/command",
-    "github.com/YotpoLtd/libra/config",
-    "github.com/YotpoLtd/libra/graphite",
-    "github.com/YotpoLtd/libra/nomad",
-    "github.com/YotpoLtd/libra/structs",
     "github.com/ant0ine/go-json-rest/rest",
     "github.com/aws/aws-sdk-go/aws",
     "github.com/aws/aws-sdk-go/aws/session",
@@ -403,6 +407,8 @@
     "github.com/hashicorp/nomad/nomad/structs",
     "github.com/influxdata/influxdb/client/v2",
     "github.com/mitchellh/cli",
+    "github.com/prometheus/client_golang/api/prometheus",
+    "github.com/prometheus/common/model",
     "github.com/sirupsen/logrus",
     "github.com/ugorji/go/codec",
     "gopkg.in/robfig/cron.v2",

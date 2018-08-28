@@ -74,10 +74,6 @@ func (b *PrometheusBackend) GetValue(rule structs.Rule) (float64, error) {
 	return float64([]*model.Sample(s)[0].Value), nil
 }
 
-func get(a []*model.Sample, index int) *model.Sample {
-	return a[index]
-}
-
 func (b *PrometheusBackend) Info() *structs.Backend {
 	return &structs.Backend{
 		Kind: b.Config.Kind,

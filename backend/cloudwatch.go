@@ -16,7 +16,6 @@ import (
 // CloudWatchConfig is the configuration for a CloudWatch backend
 type CloudWatchConfig struct {
 	Name   string
-	Kind   string
 	Region string
 }
 
@@ -92,7 +91,6 @@ func (b *CloudWatchBackend) GetValue(rule structs.Rule) (float64, error) {
 
 func (b *CloudWatchBackend) Info() *structs.Backend {
 	return &structs.Backend{
-		Kind: b.Config.Kind,
 		Name: b.Name,
 	}
 }

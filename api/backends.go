@@ -31,10 +31,10 @@ func BackendsHandler(w rest.ResponseWriter, r *rest.Request) {
 		return
 	}
 	backendResponses := []BackendResponse{}
-	for _, bv := range backends {
+	for name, cbe := range backends {
 		newBV := BackendResponse{
-			Name: bv.Info().Name,
-			Kind: bv.Info().Kind,
+			Name: name,
+			Kind: cbe.Kind,
 		}
 		backendResponses = append(backendResponses, newBV)
 	}

@@ -57,7 +57,6 @@ func (b *GraphiteBackend) GetValue(rule structs.Rule) (float64, error) {
 
 func (b *GraphiteBackend) Info() *structs.Backend {
 	return &structs.Backend{
-		Kind: b.Config.Kind,
 		Name: b.Name,
 	}
 }

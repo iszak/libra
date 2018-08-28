@@ -125,8 +125,8 @@ func loadRules() (*cron.Cron, []cron.EntryID, error) {
 
 	logrus.Info("")
 	logrus.Infof("Found %d backends", len(backends))
-	for name, b := range backends {
-		logrus.Infof("  -> %s (%s)", name, b.Info().Kind)
+	for name, cb := range backends {
+		logrus.Infof("  -> %s (%s)", name, cb.Kind)
 	}
 	logrus.Info("")
 	logrus.Infof("Found %d jobs", len(config.Jobs))
@@ -150,11 +150,12 @@ func loadRules() (*cron.Cron, []cron.EntryID, error) {
 				}
 				ids = append(ids, cfID)
 				logrus.Infof("  ----> Rule: %s", rule.Name)
-				if backends[rule.Backend] == nil {
-					return cr, ids, fmt.Errorf("Unknown backend: %s (%s)", rule.Backend, name)
+				if be, ok := backends[rule.Backend]; ok {
+					rule.BackendInstance = be.Backend
+					continue
 				}
 
-				rule.BackendInstance = backends[rule.Backend]
+				return cr, ids, fmt.Errorf("Unknown backend: %s (%s)", rule.Backend, name)
 			}
 		}
 	}

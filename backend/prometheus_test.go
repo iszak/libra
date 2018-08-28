@@ -32,7 +32,6 @@ func TestNewPrometheusBackend(t *testing.T) {
 	name := "test"
 	config := backend.PrometheusConfig{
 		Name: name,
-		Kind: "prometheus",
 		Host: "localhost",
 	}
 
@@ -185,11 +184,9 @@ func TestPrometheusBackend_GetValue_NoSamples(t *testing.T) {
 
 func TestPrometheusBackend_GetValue_StringMetric(t *testing.T) {
 	name := "test"
-	kind := "prometheus"
 	host := "localhost"
 	config := backend.PrometheusConfig{
 		Name: name,
-		Kind: kind,
 		Host: host,
 	}
 
@@ -219,10 +216,8 @@ func TestPrometheusBackend_Info(t *testing.T) {
 	qa := &mockQueryApi{}
 
 	name := "test"
-	kind := "prometheus"
 	config := backend.PrometheusConfig{
 		Name: name,
-		Kind: kind,
 	}
 
 	b, err := backend.NewPrometheusBackend(name, config, qa)
@@ -232,7 +227,7 @@ func TestPrometheusBackend_Info(t *testing.T) {
 
 	i := b.Info()
 
-	if i.Kind != kind {
+	if i.Name != name {
 		t.Fail()
 	}
 }

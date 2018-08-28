@@ -11,9 +11,8 @@ import (
 
 // PrometheusConfig is the configuration for a Prometheus backend
 type PrometheusConfig struct {
-	Name     string
-	Kind     string
-	Host     string
+	Name string
+	Host string
 }
 
 // PrometheusBackend is a metrics backend
@@ -80,7 +79,6 @@ func (b *PrometheusBackend) GetValue(rule structs.Rule) (float64, error) {
 
 func (b *PrometheusBackend) Info() *structs.Backend {
 	return &structs.Backend{
-		Kind: b.Config.Kind,
 		Name: b.Name,
 	}
 }

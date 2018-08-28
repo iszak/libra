@@ -11,7 +11,11 @@ import (
 )
 
 // ConfiguredBackends struct
-type ConfiguredBackends map[string]structs.Backender
+type ConfiguredBackends map[string]ConfiguredBackend
+type ConfiguredBackend struct {
+	Backend structs.Backender
+	Kind    string
+}
 
 // InitializeBackends loads valid backends into a map
 func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends, error) {
@@ -35,7 +39,6 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 			conf := c.Backends[name]
 
 			connection, err := NewCloudWatchBackend(name, CloudWatchConfig{
-				Kind:   conf.Kind,
 				Name:   conf.Name,
 				Region: conf.Region,
 			})
@@ -43,8 +46,10 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				return nil, fmt.Errorf("Bad configuration for %s: %s", name, err)
 			}
 
-			configuredBackends[name] = connection
-
+			configuredBackends[name] = ConfiguredBackend{
+				Backend: connection,
+				Kind:    backendType,
+			}
 		case "graphite":
 			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
 			if err != nil {
@@ -69,8 +74,10 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				return nil, fmt.Errorf("Bad configuration for %s: %s", name, err)
 			}
 
-			configuredBackends[name] = connection
-
+			configuredBackends[name] = ConfiguredBackend{
+				Backend: connection,
+				Kind:    backendType,
+			}
 		case "prometheus":
 			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
 			if err != nil {
@@ -86,16 +93,17 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 			}
 
 			connection, err := NewPrometheusBackend(name, PrometheusConfig{
-				Kind:     conf.Kind,
-				Name:     conf.Name,
+				Name: conf.Name,
 			}, client)
 
 			if err != nil {
 				return nil, fmt.Errorf("Bad configuration for %s: %s", name, err)
 			}
 
-			configuredBackends[name] = connection
-
+			configuredBackends[name] = ConfiguredBackend{
+				Backend: connection,
+				Kind:    backendType,
+			}
 		default:
 			log.Fatalf("unknown backend type '%s' for backend %s", backendType, name)
 			return nil, fmt.Errorf("unknown backend %s", backendType)

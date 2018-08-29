@@ -1,6 +1,12 @@
-hash: ee819c4258c71b6b711c216adee2891914b520092ed1424c06705baca0fe82a8
-updated: 2018-08-28T09:32:32.618976+01:00
+hash: aa8aba614563ce6d9acba3a8bfaaeda9a9e96f43436979d134956a372db14237
+updated: 2018-08-29T14:57:16.436429+01:00
 imports:
+- name: github.com/alecthomas/template
+  version: a0175ee3bccc567396460bf5acd36800cb10c49c
+  subpackages:
+  - parse
+- name: github.com/alecthomas/units
+  version: 2efee857e7cfd4f3d0138cc3cbb1b4966962b93a
 - name: github.com/ant0ine/go-json-rest
   version: ce4b71cdf7ba29ef443d704bd923f5bbf281ee30
   subpackages:
@@ -104,7 +110,7 @@ imports:
 - name: github.com/mattn/go-isatty
   version: 6ca4dbf54d38eea1a992b3c722a76a5d1c4cb25c
 - name: github.com/mitchellh/cli
-  version: ~1.0.0
+  version: 3d22a244be8aa6fb16ac24af0e195c08b7d973aa
 - name: github.com/mitchellh/copystructure
   version: 9a1b6f44e8da0e0e374624fb0a825a231b00c537
 - name: github.com/mitchellh/go-homedir
@@ -128,6 +134,7 @@ imports:
 - name: github.com/prometheus/common
   version: c7de2306084e37d54b8be01f3541a8464345e9a5
   subpackages:
+  - log
   - model
 - name: github.com/sirupsen/logrus
   version: 3e01752db0189b9157070a0e1668a620f9a85da2
@@ -151,6 +158,10 @@ imports:
   - cpu
   - unix
   - windows
+  - windows/registry
+  - windows/svc/eventlog
+- name: gopkg.in/alecthomas/kingpin.v2
+  version: 947dcec5ba9c011838740e680966fd7087a71d0d
 - name: gopkg.in/robfig/cron.v2
   version: be2e0b0deed5a68ffee390b4583a13aff8321535
 testImports: []

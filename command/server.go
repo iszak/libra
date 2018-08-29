@@ -182,6 +182,10 @@ func createCronFunc(rule *structs.Rule, client *napi.Client, job, group string, 
 	return func() {
 		n := rand.Intn(10) // offset cron jobs slightly so they don't collide
 		time.Sleep(time.Duration(n) * time.Second)
-		backend.Work(rule, client, job, group, min, max)
+		err := backend.Work(rule, client, job, group, min, max)
+
+		if err != nil {
+			logrus.Errorf("%s", err)
+		}
 	}
 }

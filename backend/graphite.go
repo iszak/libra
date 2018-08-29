@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 
-	log "github.com/sirupsen/logrus"
 	"github.com/underarmour/libra/graphite"
 	"github.com/underarmour/libra/structs"
 )
@@ -44,7 +43,6 @@ func (b *GraphiteBackend) GetValue(rule structs.Rule) (float64, error) {
 
 	s, err := b.client.Render(metricName)
 	if err != nil {
-		log.Println(err)
 		return 0.0, err
 	}
 	if len(s.Datapoints) == 0 {

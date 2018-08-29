@@ -9,7 +9,6 @@ import (
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/cloudwatch"
-	log "github.com/sirupsen/logrus"
 	"github.com/underarmour/libra/structs"
 )
 
@@ -78,7 +77,6 @@ func (b *CloudWatchBackend) GetValue(rule structs.Rule) (float64, error) {
 
 	s, err := b.client.GetMetricStatistics(dinput)
 	if err != nil {
-		log.Println(err)
 		return 0.0, err
 	}
 	if len(s.Datapoints) == 0 {

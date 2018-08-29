@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"fmt"
 	"github.com/hashicorp/nomad/api"
 
 	log "github.com/sirupsen/logrus"
@@ -12,14 +13,12 @@ import (
 // Work actually does the autoscaling for a rule
 func Work(r *structs.Rule, n *api.Client, job, group string, min, max int) error {
 	if r.BackendInstance == nil {
-		log.Errorf("No BackendInstance set")
 		return errors.New("no BackendInstance set")
 	}
 
 	value, err := r.BackendInstance.GetValue(*r)
 	if err != nil {
-		log.Errorf("problem getting value for metric %s: %s", r.Name, err)
-		return err
+		return fmt.Errorf("problem getting value for metric %s: %s", r.Name, err)
 	}
 
 	compValue := r.ComparisonValue
@@ -48,21 +47,19 @@ func Work(r *structs.Rule, n *api.Client, job, group string, min, max int) error
 			log.Infof("Metric %s/%s was %.2f, which is above the threshold %.2f. Attempting to increase count of %s/%s by %d", r.MetricNamespace, r.MetricName, value, r.ComparisonValue, job, group, count)
 			_, _, err := nomad.Scale(n, job, group, count, min, max)
 			if err != nil {
-				log.Errorf("problem scaling nomad job/group %s/%s: %s", job, group, err)
-				return err
+				return fmt.Errorf("problem scaling nomad job/group %s/%s: %s", job, group, err)
 			}
 		case "decrease_count":
 			count := -r.ActionValue
 			log.Infof("Metric %s/%s was %.2f, which is below the threshold %.2f. Attempting to decrease count of %s/%s by %d", r.MetricNamespace, r.MetricName, value, r.ComparisonValue, job, group, -count)
 			evaluation, newCount, err := nomad.Scale(n, job, group, count, min, max)
 			if err != nil {
-				log.Errorf("Problem scaling nomad job/group %s/%s: %s", job, group, err)
-				return err
+				return fmt.Errorf("Problem scaling nomad job/group %s/%s: %s", job, group, err)
 			} else {
 				log.Infof("Scaled %s/%s to %d successfully with evaluation ID %s", job, group, newCount, evaluation)
 			}
 		default:
-			log.Errorln("Autoscaling action did not match. Doing nothing...")
+			return errors.New("Autoscaling action did not match. Doing nothing...")
 		}
 	} else {
 		log.Debugln("Not scaling")

@@ -4,8 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	log "github.com/sirupsen/logrus"
-
 	"github.com/underarmour/libra/config"
 	"github.com/underarmour/libra/structs"
 )
@@ -32,8 +30,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 		case "cloudwatch":
 			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
 			if err != nil {
-				log.Errorf("Failed to read or parse config file: %s", err)
-				return nil, err
+				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
 			}
 
 			conf := c.Backends[name]
@@ -52,8 +49,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 		case "graphite":
 			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
 			if err != nil {
-				log.Errorf("Failed to read or parse config file: %s", err)
-				return nil, err
+				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
 			}
 
 			conf := c.Backends[name]
@@ -79,8 +75,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 		case "prometheus":
 			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
 			if err != nil {
-				log.Errorf("Failed to read or parse config file: %s", err)
-				return nil, err
+				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
 			}
 
 			conf := c.Backends[name]
@@ -101,8 +96,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				Kind:    backendType,
 			}
 		default:
-			log.Fatalf("unknown backend type '%s' for backend %s", backendType, name)
-			return nil, fmt.Errorf("unknown backend %s", backendType)
+			return nil, fmt.Errorf("unknown backend type '%s' for backend %s", backendType, name)
 		}
 	}
 

@@ -88,7 +88,7 @@ func (c *ServerCommand) Run(args []string) int {
 
 	s.SetApp(router)
 
-	cr, _, err := loadRules(cfg, backends)
+	cr, _, err := loadRules(cfg, backends, client)
 	cr.Start()
 	if err != nil {
 		logrus.Errorf("Problem with the Libra server: %s", err)
@@ -138,7 +138,7 @@ func newBackends(cfg *config.RootConfig) backend.ConfiguredBackends {
 	return backends
 }
 
-func loadRules(config *config.RootConfig, backends backend.ConfiguredBackends) (*cron.Cron, []cron.EntryID, error) {
+func loadRules(config *config.RootConfig, backends backend.ConfiguredBackends, client *napi.Client) (*cron.Cron, []cron.EntryID, error) {
 	logrus.Info("")
 	logrus.Infof("Found %d backends", len(backends))
 	for name, cb := range backends {
@@ -159,7 +159,7 @@ func loadRules(config *config.RootConfig, backends backend.ConfiguredBackends) (
 			logrus.Infof("      max_count = %d", group.MaxCount)
 
 			for name, rule := range group.Rules {
-				cfID, err := cr.AddFunc(rule.Period, createCronFunc(rule, &config.Nomad, job.Name, group.Name, group.MinCount, group.MaxCount))
+				cfID, err := cr.AddFunc(rule.Period, createCronFunc(rule, client, job.Name, group.Name, group.MinCount, group.MaxCount))
 				if err != nil {
 					logrus.Errorf("Problem adding autoscaling rule to cron: %s", err)
 					return cr, ids, err
@@ -178,10 +178,10 @@ func loadRules(config *config.RootConfig, backends backend.ConfiguredBackends) (
 	return cr, ids, nil
 }
 
-func createCronFunc(rule *structs.Rule, nomadConf *nomad.Config, job, group string, min, max int) func() {
+func createCronFunc(rule *structs.Rule, client *napi.Client, job, group string, min, max int) func() {
 	return func() {
 		n := rand.Intn(10) // offset cron jobs slightly so they don't collide
 		time.Sleep(time.Duration(n) * time.Second)
-		backend.Work(rule, nomadConf, job, group, min, max)
+		backend.Work(rule, client, job, group, min, max)
 	}
 }

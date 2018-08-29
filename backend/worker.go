@@ -2,6 +2,7 @@ package backend
 
 import (
 	"errors"
+	"github.com/hashicorp/nomad/api"
 
 	log "github.com/sirupsen/logrus"
 	"github.com/underarmour/libra/nomad"
@@ -9,16 +10,10 @@ import (
 )
 
 // Work actually does the autoscaling for a rule
-func Work(r *structs.Rule, nomadConf *nomad.Config, job, group string, min, max int) error {
+func Work(r *structs.Rule, n *api.Client, job, group string, min, max int) error {
 	if r.BackendInstance == nil {
 		log.Errorf("No BackendInstance set")
 		return errors.New("no BackendInstance set")
-	}
-
-	n, err := nomad.NewClient(*nomadConf)
-	if err != nil {
-		log.Errorf("Failed to create Nomad Client: %s", err)
-		return err
 	}
 
 	value, err := r.BackendInstance.GetValue(*r)

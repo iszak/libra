@@ -23,7 +23,7 @@ type PrometheusBackend struct {
 	Connection prometheus.QueryAPI
 }
 
-func NewQueryAPI(address string) (prometheus.QueryAPI, error) {
+func newPrometheusQueryAPI(address string) (prometheus.QueryAPI, error) {
 	cfg := prometheus.Config{
 		Address: address,
 	}

@@ -123,7 +123,7 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 
 			conf := c.Backends[name]
 
-			client, err := NewQueryAPI(conf.Host)
+			client, err := newPrometheusQueryAPI(conf.Host)
 			if err != nil {
 				return nil, err
 			}

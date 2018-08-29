@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/underarmour/libra/config"
 	"github.com/underarmour/libra/structs"
 )
 
@@ -19,8 +18,8 @@ type ConfiguredBackend struct {
 func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends, error) {
 	configuredBackends := make(ConfiguredBackends, 0)
 
-	for name, backend := range backends {
-		backendType := backend.Kind
+	for name, conf := range backends {
+		backendType := conf.Kind
 
 		if backendType == "" {
 			return nil, fmt.Errorf("Missing backend type for '%s'", name)
@@ -28,13 +27,6 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 
 		switch backendType {
 		case "cloudwatch":
-			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
-			if err != nil {
-				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
-			}
-
-			conf := c.Backends[name]
-
 			connection, err := NewCloudWatchBackend(CloudWatchConfig{
 				Region: conf.Region,
 			})
@@ -47,13 +39,6 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				Kind:    backendType,
 			}
 		case "graphite":
-			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
-			if err != nil {
-				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
-			}
-
-			conf := c.Backends[name]
-
 			password := conf.Password
 			if password == "" {
 				password = os.Getenv("GRAPHITE_PASSWORD")
@@ -73,13 +58,6 @@ func InitializeBackends(backends map[string]structs.Backend) (ConfiguredBackends
 				Kind:    backendType,
 			}
 		case "prometheus":
-			c, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
-			if err != nil {
-				return nil, fmt.Errorf("Failed to read or parse config file: %s", err)
-			}
-
-			conf := c.Backends[name]
-
 			client, err := NewQueryAPI(conf.Host)
 			if err != nil {
 				return nil, err

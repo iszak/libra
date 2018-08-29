@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/ant0ine/go-json-rest/rest"
+	napi "github.com/hashicorp/nomad/api"
 	"github.com/mitchellh/cli"
 	"github.com/sirupsen/logrus"
 	"github.com/underarmour/libra/api"
@@ -67,15 +68,19 @@ func (c *ServerCommand) Run(args []string) int {
 		&rest.TimerMiddleware{},
 	}
 
+	cfg := newRootConfig()
+	backends := newBackends(cfg)
+	client := newNomadClient(cfg.Nomad)
+
 	s.Use(mw...)
 	router, err := rest.MakeRouter(
-		rest.Post("/scale", api.ScaleHandler),
-		rest.Post("/capacity", api.CapacityHandler),
-		rest.Post("/grafana", api.GrafanaHandler),
-		rest.Get("/backends", api.BackendsHandler),
+		rest.Post("/scale", api.ScaleHandler(cfg, client)),
+		rest.Post("/capacity", api.CapacityHandler(cfg, client)),
+		rest.Post("/grafana", api.GrafanaHandler(client)),
+		rest.Get("/backends", api.BackendsHandler(backends)),
 		rest.Get("/ping", api.PingHandler),
 		rest.Get("/", api.HomeHandler),
-		rest.Post("/restart", api.RestartHandler),
+		rest.Post("/restart", api.RestartHandler(client)),
 	)
 	if err != nil {
 		logrus.Fatal(err)
@@ -83,7 +88,7 @@ func (c *ServerCommand) Run(args []string) int {
 
 	s.SetApp(router)
 
-	cr, _, err := loadRules()
+	cr, _, err := loadRules(cfg, backends)
 	cr.Start()
 	if err != nil {
 		logrus.Errorf("Problem with the Libra server: %s", err)
@@ -102,13 +107,8 @@ func (c *ServerCommand) Synopsis() string {
 	return "Run a Libra server"
 }
 
-func loadRules() (*cron.Cron, []cron.EntryID, error) {
-	config, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
-	if err != nil {
-		logrus.Fatalf("Failed to read or parse config file: %s", err)
-	}
-	logrus.Info("Loaded and parsed configuration file")
-	n, err := nomad.NewClient(config.Nomad)
+func newNomadClient(cfg nomad.Config) *napi.Client {
+	n, err := nomad.NewClient(cfg)
 	if err != nil {
 		log.Fatalf("Failed to create Nomad Client: %s", err)
 	}
@@ -118,11 +118,27 @@ func loadRules() (*cron.Cron, []cron.EntryID, error) {
 		logrus.Fatalf("  Failed to get Nomad DC: %s", err)
 	}
 	logrus.Infof("  -> DC: %s", dc)
-	backends, err := backend.InitializeBackends(config.Backends)
+	return n
+}
+
+func newRootConfig() *config.RootConfig {
+	cfg, err := config.NewConfig(os.Getenv("LIBRA_CONFIG_DIR"))
+	if err != nil {
+		logrus.Fatalf("Failed to read or parse config file: %s", err)
+	}
+	logrus.Info("Loaded and parsed configuration file")
+	return cfg
+}
+
+func newBackends(cfg *config.RootConfig) backend.ConfiguredBackends {
+	backends, err := backend.InitializeBackends(cfg.Backends)
 	if err != nil {
 		logrus.Fatalf("%s", err)
 	}
+	return backends
+}
 
+func loadRules(config *config.RootConfig, backends backend.ConfiguredBackends) (*cron.Cron, []cron.EntryID, error) {
 	logrus.Info("")
 	logrus.Infof("Found %d backends", len(backends))
 	for name, cb := range backends {
